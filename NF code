@@ -1,0 +1,20 @@
+def NextFit(w,capacity,s,e):
+    n=0
+    T = list(set(s+e)) # create a list with the unique values in s+e
+    T.sort()
+    items = len(w)
+    space_matrix = np.full((len(T),items),capacity)
+    p= np.zeros(items)
+    for j in range(items) :
+        p[j]=-1
+        ts = T.index(s[j])
+        te = T.index(e[j])
+        a=space_matrix[ts:te,n]
+        if all(a>w[j] for a in a)==True :
+            p[j]=n
+            space_matrix[ts:te,n] = space_matrix[ts:te,n] - w[j]
+        else :
+            n  = n + 1
+            p[j] = n 
+            space_matrix[ts:te,n] = space_matrix[ts:te,n] - w[j]
+    return p
