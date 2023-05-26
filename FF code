@@ -1,0 +1,27 @@
+def FF(w,c,Ts,Te) :
+    items = len(w)
+    T=list(set(Ts+Te))
+    T.sort()
+    cc = np.full((len(T),items),0)
+    cc[:,0]=c
+    p= np.zeros(items)
+    
+    n=1
+    for j in range(items):
+        for i in range(n)  :
+            p[j]=-1
+            ts = T.index(Ts[j])
+            te = T.index(Te[j])
+            a=cc[ts:te,i]
+            if all(a>w[j] for a in a)==True :
+                p[j]=i 
+                cc[ts:te,i]=cc[ts:te,i]-w[j]
+                break
+        if p[j]==-1 :
+            ts = T.index(Ts[j])
+            te = T.index(Te[j])
+            n=n+1
+            p[j]=n-1
+            cc[:,n-1]=c
+            cc[ts:te,n-1]=cc[ts:te,n-1]-w[j]
+    return p
