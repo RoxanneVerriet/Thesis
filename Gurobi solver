@@ -1,0 +1,64 @@
+# NAME THE MODEL
+    ILP = gb.Model("ILP solution")
+    
+    # DEFINE PARAMETERS
+    n=200
+    c = 100 #The capacity of the bins 
+    s=data['s'].values.tolist()
+    e=data['e'].values.tolist()
+    Ts=s[:n]
+    Te=e[:n]
+    W=np.array(data['ci'].values.tolist())
+    w=W[:n]
+    items = len(w) #The number of items we have 
+    bins = len(w) #The (maximum) number of bins
+     
+    a=[]
+    for i in range(len(Ts)):
+        a_r=[]
+        for t in range(items):
+            if Ts[i] <= Ts[t] < Te[i] :
+                a_r.append(1)
+            else : a_r.append(0) 
+        a.append(a_r)
+    
+    # CREATE VARIABLES
+    y = [ILP.addVar(name = 'y({})'.format(k),vtype=gb.GRB.BINARY) for k in range(items)]
+    x = [[ILP.addVar(name = 'x({},{})'.format(i,k),vtype=gb.GRB.BINARY) for i in range(items)] for k in range(items)]
+    
+    # CREATE THE OBJECTIVE FUNCTION
+    ILP.setObjective(sum(y[k] for k in range(items)),gb.GRB.MINIMIZE)
+    
+    # ADD THE CONSTRAINTS
+    #this constraint ensures that every item is packed
+    for k in range(items):
+       ILP.addConstr(sum(x[i][k] for i in range(items)) == 1) 
+    
+    #this constraint ensures that the capacity constraint is not violated at every time instance
+    for k in range(items):
+        for t in range(len(Ts)) :
+            ILP.addConstr(gb.quicksum(a[i][t] * w[i] * x[k][i] for i in range(items)) <= c * y[k])
+    
+            
+    # UPDATE THE PROBLEM
+    
+    ILP.update()
+    
+    # SET A TIME LIMIT
+    ILP.setParam('TimeLimit', 5*60)
+    ILP.setParam('Outputflag', 0)
+    
+    
+    # OPTIMIZE THE PROBLEM
+    
+    ILP.optimize()
+    
+    # DISPLAY THE SOLUTION
+    n=items 
+    solution_xy = ILP.getAttr('X')
+    solution_x = solution_xy[n:]
+    solution = np.reshape(solution_x , (items,items))
+    solution_rowsum = np.sum(solution,axis=1)
+    number_of_bins=np.count_nonzero(solution_rowsum)
+    gap = ILP.MIPGap
+    bound = ILP.ObjBound
