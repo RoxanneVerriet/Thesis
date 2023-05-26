@@ -1,0 +1,132 @@
+def rewrite(solution):
+    l=np.array(solution)
+    a=max(l)
+    number_of_bins = a+1
+    i=0
+    f=[]
+    while i < number_of_bins :
+        b=np.where(l==i)[0]+1
+        h=b.tolist()
+        f.append(h)
+        i+=1
+    return f
+
+def rewrite2(solution, items_reallocated):
+
+    solution = np.array(solution)
+    newsol=[]
+    for i in range(0,len(solution)):
+        indexes = np.where(solution[i]==1)[0]
+        indexes.tolist()
+        itemlist = []
+        for j in indexes :
+            itemlist.append(items_reallocated[j])
+        newsol.append(itemlist)
+    newsolup = [ele for ele in newsol if ele != []]
+    
+    return newsolup
+
+
+def Kopt(initial_sol, w, capacity,s,e):
+    # T = list(set(s+e)) # create a list with the unique values in s+e
+    # T.sort()
+    # free_space = []
+    # space_matrix =[]
+    new_solution =[]
+    # for i in range(0,len(initial_sol)):
+    #     totalweight = np.repeat(capacity,len(T))
+    #     for j in range(0,len(initial_sol[i])) :
+    #         item = initial_sol[i][j] 
+    #         s_index = T.index(s[item-1]) #Find index for starting time of the item in array T
+    #         e_index = T.index(e[item-1]) #Find index for ending time of the item in array T
+    #         item_weight = w[initial_sol[i][j]-1] #Find the weight of the item 
+    #         totalweight[s_index : e_index] = totalweight[s_index : e_index] - item_weight #Adapt capacity
+    #     space_matrix.append(totalweight.tolist())
+    #     free_space_i = round(sum(totalweight)/1000 , 4)
+    #     free_space.append(free_space_i)
+    # original_order = copy.deepcopy(free_space)
+    # free_space.sort(reverse=True)
+    # order_indexes =[]
+    # for i in free_space :
+    #     ind = original_order.index(i)
+    #     order_indexes.append(ind)
+        
+    # k=[]
+    # a=list(zip(order_indexes[::2], order_indexes[1::2]))
+    # alist = [list(ele) for i,ele in enumerate(a)]
+    # for i in order_indexes :
+    #     if any(i in list for list in alist) == False :
+    #         k.append(i)
+    # if len(k) != 0 :
+    #     alist.append(k)
+    
+    numb = []
+    for i in initial_sol :
+        numb.append(len(i))
+
+    alist =[]
+
+    numb=np.array(numb)
+    for j in range(1,max(numb)+1) :
+        a = np.where(numb==j)
+        alist.append(list(a[0]))
+    
+    for i in alist :
+        items_reallocated =[]
+        for j in i:
+            items_reallocated.append(initial_sol[j])
+        items_reallocated = sum(items_reallocated, [])
+
+        S=[]
+        E=[]
+        W=[]
+        for i in items_reallocated :
+            S.append(s[i-1])
+            E.append(e[i-1])
+            W.append(w[i-1])
+        ILP = gb.Model("ILP solution")
+        items = len(W) 
+        bins = len(W)
+    
+        a=[]
+        for i in range(len(S)):
+            a_r=[]
+            for t in range(items):
+                if S[i] <= S[t] < E[i] :
+                    a_r.append(1)
+                else : a_r.append(0) 
+            a.append(a_r)
+        
+        y = [ILP.addVar(name = 'y({})'.format(k),vtype=gb.GRB.BINARY) for k in range(items)]
+        x = [[ILP.addVar(name = 'x({},{})'.format(i,k),vtype=gb.GRB.BINARY) for i in range(items)] for k in range(items)]
+
+        ILP.setObjective(sum(y[k] for k in range(items)),gb.GRB.MINIMIZE)
+    
+        for k in range(items):
+            ILP.addConstr(sum(x[i][k] for i in range(items)) == 1) 
+    
+    
+        for k in range(items):
+            for t in range(len(S)) :
+                ILP.addConstr(gb.quicksum(a[i][t] * W[i] * x[k][i] for i in range(items)) <= capacity * y[k])
+            
+        ILP.update()
+    
+        ILP.setParam('TimeLimit', 5*60)
+        ILP.setParam('Outputflag', 0)
+    
+        ILP.optimize()
+    
+        n=items 
+        solution_xy = ILP.getAttr('X')
+        solution_x = solution_xy[n:]
+        solution = np.reshape(solution_x , (items,items))
+    
+        newbins = rewrite2(solution, items_reallocated)
+        
+        for i in newbins :
+            new_solution.append(i)
+    
+    
+    number_of_bins_needed = len(new_solution)
+    return new_solution
