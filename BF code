@@ -1,0 +1,32 @@
+def bestfit(w,capacity,s,e) :
+    T = list(set(s+e)) # create a list with the unique values in s+e
+    T.sort()
+    items = len(w)
+    n=1
+    space_matrix = np.full((len(T),items),capacity)
+
+
+    
+    p= np.zeros(items)
+    for j in range(items): 
+        p[j]=-1
+        available_bins = []
+        for i in range(n)  :
+            ts = T.index(s[j])
+            te = T.index(e[j])
+            a=space_matrix[ts:te,i]
+            if all(a>w[j] for a in a)==True :
+                available_bins.append(i)
+        if len(available_bins) >= 1 :
+            free_space = []
+            for i in available_bins :
+                a=space_matrix[ts:te,i]
+                free_space.append(sum(a))
+            minbin = available_bins[free_space.index(min(free_space))]
+            p[j]=minbin
+            space_matrix[ts:te,minbin] = space_matrix[ts:te,minbin] - w[j]
+        else :
+            n = n +1 
+            p[j]=n-1
+            space_matrix[ts:te,n-1] = space_matrix[ts:te,n-1] - w[j]
+    return p 
