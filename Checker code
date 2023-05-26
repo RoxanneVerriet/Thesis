@@ -1,0 +1,31 @@
+def checker(solution,w,capacity,s,e):
+    T = list(set(s+e)) # create a list with the unique values in s+e
+    T.sort()
+    space_matrix =[]
+    for i in range(0,len(solution)):
+        totalweight = np.repeat(capacity,len(T))
+        for j in range(0,len(solution[i])) :
+            item = solution[i][j] 
+            s_index = T.index(s[item-1]) #Find index for starting time of the item in array T
+            e_index = T.index(e[item-1]) #Find index for ending time of the item in array T
+            item_weight = w[item-1] #Find the weight of the item 
+            totalweight[s_index : e_index] = totalweight[s_index : e_index] - item_weight #Adapt capacity
+        space_matrix.append(totalweight.tolist())
+    # summation = []
+    # for i in range(0,len(space_matrix)) :
+    #     summ = sum(space_matrix[i])
+    #     summation.append(summ)
+    flatlist =  [item for sublist in space_matrix for item in sublist]
+    item_check = []
+    for i in range(1,len(w)+1) :
+        if i in (item for sublist in solution for item in sublist) :
+            item_check.append(1)
+        else : 
+            item_check.append(0)
+    if all(i >= 0 for i in flatlist )==True and all(i==1 for i in item_check)==True :
+        return 'Capacity constraint is respected and every item is packed'
+    else : 
+            return 'capacity constraint neglected or not every item is packed, or both'
+
+    
+
