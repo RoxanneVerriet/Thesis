@@ -1,0 +1,36 @@
+Ts=[1,2,2,2,2,4,5,6,8,8]
+Te=[12,26,21,30,17,21,17,35,26,19]
+w=[53,65,57,68,70,32,34,64,28,44]
+c = 100
+
+items = len(w)
+T=list(set(Ts+Te))
+T.sort()
+n=1
+cc = np.full((len(T),items),0)
+cc[:,0]=c
+
+
+p= np.zeros(items)
+for j in range(items): 
+    for i in range(n)  :
+        p[j]=-1
+        ts = T.index(Ts[j])
+        te = T.index(Te[j])
+        a=cc[ts:te,i]
+        if all(a>w[j] for a in a)==True :
+            p[j]=i  
+            cc[ts:te,i]=cc[ts:te,i]-w[j]
+            break 
+    if p[j]==-1 :
+        ts = T.index(Ts[j])
+        te = T.index(Te[j])
+        n=n+1
+        p[j]=n-1
+        cc[:,n-1]=c
+        cc[ts:te,n-1]=cc[ts:te,n-1]-w[j]
+    
+        
+        
+print("The number of bins used is {}".format(n))
+print("The assignment of the items is as follows {}".format(p))
