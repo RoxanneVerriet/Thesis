@@ -1,3 +1,57 @@
+import numpy as np
+import random
+import gurobipy as gb
+import copy
+import pandas as pd
+import time 
+
+df = pd.read_excel("C:/Users/roxan/Documents/Thesis/Instance50.1.4.xlsx")
+
+## We assume an item goes out of the bin at the start of the end time, so item
+## 1 runs from 1 to 3, means that at the start of time 3 the item goes out the bin.
+
+# DEFINE PARAMETERS
+
+#The capacity of 55the bins 
+s=df['s'].values.tolist()
+e=df['e'].values.tolist()
+
+w=df['ci'].values.tolist()
+
+
+capacity = 100
+
+def FF(w,c,Ts,Te) :
+    items = len(w)
+    T=list(set(Ts+Te))
+    T.sort()
+    cc = np.full((len(T),items),0)
+    cc[:,0]=c
+    p= np.zeros(items)
+    
+    n=1
+    for j in range(items):
+        for i in range(n)  :
+            p[j]=-1
+            ts = T.index(Ts[j])
+            te = T.index(Te[j])
+            a=cc[ts:te,i]
+            if all(a>w[j] for a in a)==True :
+                p[j]=i 
+                cc[ts:te,i]=cc[ts:te,i]-w[j]
+                break
+        if p[j]==-1 :
+            ts = T.index(Ts[j])
+            te = T.index(Te[j])
+            n=n+1
+            p[j]=n-1
+            cc[:,n-1]=c
+            cc[ts:te,n-1]=cc[ts:te,n-1]-w[j]
+    return p
+    # print("The number of bins used is {}".format(n))
+    # print("The assignment of the items is as follows {}".format(p))
+        
+
 def rewrite(solution):
     l=np.array(solution)
     a=max(l)
@@ -26,13 +80,63 @@ def rewrite2(solution, items_reallocated):
     
     return newsolup
 
+def checker(solution,w,capacity,s,e):
+    T = list(set(s+e)) # create a list with the unique values in s+e
+    T.sort()
+    space_matrix =[]
+    for i in range(0,len(solution)):
+        totalweight = np.repeat(capacity,len(T))
+        for j in range(0,len(solution[i])) :
+            item = solution[i][j] 
+            s_index = T.index(s[item-1]) #Find index for starting time of the item in array T
+            e_index = T.index(e[item-1]) #Find index for ending time of the item in array T
+            item_weight = w[item-1] #Find the weight of the item 
+            totalweight[s_index : e_index] = totalweight[s_index : e_index] - item_weight #Adapt capacity
+        space_matrix.append(totalweight.tolist())
+    # summation = []
+    # for i in range(0,len(space_matrix)) :
+    #     summ = sum(space_matrix[i])
+    #     summation.append(summ)
+    flatlist =  [item for sublist in space_matrix for item in sublist]
+    item_check = []
+    for i in range(1,len(w)+1) :
+        if i in (item for sublist in solution for item in sublist) :
+            item_check.append(1)
+        else : 
+            item_check.append(0)
+    if all(i >= 0 for i in flatlist )==True and all(i==1 for i in item_check)==True :
+        return 'Capacity constraint is respected and every item is packed'
+    else : 
+            return 'capacity constraint neglected or not every item is packed, or both'
+
+def objectivefunction(solution,w,s,e,capacity) : #For every solution returns the space used squared, in percentages
+    T=list(set(s+e))
+    T.sort()
+    occupation_used = []
+    occupation_available =(T[-1] - T[0])*capacity
+    for b in range(0,len(solution)):
+        total_occupation = 0 
+        for i in range(0,len(solution[b])):
+            item = solution[b][i]
+            s_i = s[item-1]
+            e_i = e[item-1]
+            w_i = w[item-1]
+            occupation_i = (e_i-s_i)*w_i
+            total_occupation = total_occupation + occupation_i
+        f=(total_occupation**2)/occupation_available
+        occupation_used.append((f))
+    outcome = sum(occupation_used)
+    return  outcome 
+
 
 def Kopt(initial_sol, w, capacity,s,e):
+    
+    ## SELECT MOST SPACE AVAILABLE ##
     # T = list(set(s+e)) # create a list with the unique values in s+e
     # T.sort()
     # free_space = []
     # space_matrix =[]
-    new_solution =[]
+    #new_solution =[]
     # for i in range(0,len(initial_sol)):
     #     totalweight = np.repeat(capacity,len(T))
     #     for j in range(0,len(initial_sol[i])) :
@@ -60,73 +164,96 @@ def Kopt(initial_sol, w, capacity,s,e):
     # if len(k) != 0 :
     #     alist.append(k)
     
-    numb = []
-    for i in initial_sol :
-        numb.append(len(i))
+    ## SELECT ON THE AMOUNT OF ITEMS IN THE BINS ##
+    # numb = []
+    # for i in initial_sol :
+    #     numb.append(len(i))
 
-    alist =[]
+    # alist =[]
 
-    numb=np.array(numb)
-    for j in range(1,max(numb)+1) :
-        a = np.where(numb==j)
-        alist.append(list(a[0]))
-    
-    for i in alist :
-        items_reallocated =[]
-        for j in i:
-            items_reallocated.append(initial_sol[j])
-        items_reallocated = sum(items_reallocated, [])
-
-        S=[]
-        E=[]
-        W=[]
-        for i in items_reallocated :
-            S.append(s[i-1])
-            E.append(e[i-1])
-            W.append(w[i-1])
-        ILP = gb.Model("ILP solution")
-        items = len(W) 
-        bins = len(W)
-    
-        a=[]
-        for i in range(len(S)):
-            a_r=[]
-            for t in range(items):
-                if S[i] <= S[t] < E[i] :
-                    a_r.append(1)
-                else : a_r.append(0) 
-            a.append(a_r)
-        
-        y = [ILP.addVar(name = 'y({})'.format(k),vtype=gb.GRB.BINARY) for k in range(items)]
-        x = [[ILP.addVar(name = 'x({},{})'.format(i,k),vtype=gb.GRB.BINARY) for i in range(items)] for k in range(items)]
-
-        ILP.setObjective(sum(y[k] for k in range(items)),gb.GRB.MINIMIZE)
-    
-        for k in range(items):
-            ILP.addConstr(sum(x[i][k] for i in range(items)) == 1) 
+    # numb=np.array(numb)
+    # for j in range(1,max(numb)+1) :
+    #     a = np.where(numb==j)
+    #     alist.append(list(a[0]))
     
     
-        for k in range(items):
-            for t in range(len(S)) :
-                ILP.addConstr(gb.quicksum(a[i][t] * W[i] * x[k][i] for i in range(items)) <= capacity * y[k])
+    ## TABU LIST ##
+    
+    Tabu = []
+    solution = copy.deepcopy(initial_sol)
+    start=time.time()
+    time_needed = 0 
+    while time_needed < 300 :
+    
+        alist = random.sample(solution,k=4)
+        if alist not in Tabu :
             
-        ILP.update()
-    
-        ILP.setParam('TimeLimit', 5*60)
-        ILP.setParam('Outputflag', 0)
-    
-        ILP.optimize()
-    
-        n=items 
-        solution_xy = ILP.getAttr('X')
-        solution_x = solution_xy[n:]
-        solution = np.reshape(solution_x , (items,items))
-    
-        newbins = rewrite2(solution, items_reallocated)
         
-        for i in newbins :
-            new_solution.append(i)
+            # for i in alist :
+            #     items_reallocated =[]
+            #     for j in i:
+            #         items_reallocated.append(j)
+            #         items_reallocated = sum(items_reallocated, [])
+            items_reallocated = [item for sublist in alist for item in sublist]
+            S=[]
+            E=[]
+            W=[]
+            for i in items_reallocated :
+                S.append(s[i-1])
+                E.append(e[i-1])
+                W.append(w[i-1])
+            ILP = gb.Model("ILP solution")
+            items = len(W) 
+            bins = len(W)
+        
+            a=[]
+            for i in range(len(S)):
+                a_r=[]
+                for t in range(items):
+                    if S[i] <= S[t] < E[i] :
+                        a_r.append(1)
+                    else : a_r.append(0) 
+                a.append(a_r)
+            
+            y = [ILP.addVar(name = 'y({})'.format(k),vtype=gb.GRB.BINARY) for k in range(items)]
+            x = [[ILP.addVar(name = 'x({},{})'.format(i,k),vtype=gb.GRB.BINARY) for i in range(items)] for k in range(items)]
     
+            ILP.setObjective(sum(y[k] for k in range(items)),gb.GRB.MINIMIZE)
+        
+            for k in range(items):
+                ILP.addConstr(sum(x[i][k] for i in range(items)) == 1) 
+        
+        
+            for k in range(items):
+                for t in range(len(S)) :
+                    ILP.addConstr(gb.quicksum(a[i][t] * W[i] * x[k][i] for i in range(items)) <= capacity * y[k])
+                
+            ILP.update()
+        
+            ILP.setParam('TimeLimit', 5*60)
+            ILP.setParam('Outputflag', 0)
+        
+            ILP.optimize()
+        
+            n=items 
+            solution_xy = ILP.getAttr('X')
+            solution_x = solution_xy[n:]
+            solutionILP = np.reshape(solution_x , (items,items))
+        
+            newbins = rewrite2(solutionILP, items_reallocated)
+            
+            new_solution = solution.copy()
+            for i in alist :
+                new_solution.remove(i)
+            new_solution = list(new_solution)
+            for i in newbins :
+                new_solution.append(i)
+            number_of_bins_needed = len(new_solution)
     
-    number_of_bins_needed = len(new_solution)
-    return new_solution
+        if objectivefunction(new_solution,w,s,e,capacity) > objectivefunction(solution,w,s,e,capacity) :
+            solution = copy.deepcopy(new_solution)
+        else : 
+            Tabu.append(alist)
+        end = time.time()
+        time_needed  = time_needed + (end-start)
+    return solution
