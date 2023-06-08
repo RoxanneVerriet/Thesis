@@ -5,7 +5,7 @@ import copy
 import pandas as pd
 import time 
 
-df = pd.read_excel("C:/Users/roxan/Documents/Thesis/Instance50.1.4.xlsx")
+df = pd.read_excel("C:/Users/roxan/Documents/Thesis/Instance50.2.1.xlsx")
 
 ## We assume an item goes out of the bin at the start of the end time, so item
 ## 1 runs from 1 to 3, means that at the start of time 3 the item goes out the bin.
@@ -123,7 +123,7 @@ def objectivefunction(solution,w,s,e,capacity) : #For every solution returns the
             w_i = w[item-1]
             occupation_i = (e_i-s_i)*w_i
             total_occupation = total_occupation + occupation_i
-        f=(total_occupation**2)/occupation_available
+        f=(total_occupation/occupation_available)**2
         occupation_used.append((f))
     outcome = sum(occupation_used)
     return  outcome 
@@ -181,9 +181,12 @@ def Kopt(initial_sol, w, capacity,s,e):
     
     Tabu = []
     solution = copy.deepcopy(initial_sol)
-    start=time.time()
-    time_needed = 0 
-    while time_needed < 300 :
+
+
+    time_out = time.time() + 60*4
+    no_improvement = 0
+
+    while no_improvement < 20 and time.time() < time_out :
     
         alist = random.sample(solution,k=4)
         if alist not in Tabu :
@@ -230,7 +233,7 @@ def Kopt(initial_sol, w, capacity,s,e):
                 
             ILP.update()
         
-            ILP.setParam('TimeLimit', 5*60)
+            ILP.setParam('TimeLimit', 3*60)
             ILP.setParam('Outputflag', 0)
         
             ILP.optimize()
@@ -252,8 +255,10 @@ def Kopt(initial_sol, w, capacity,s,e):
     
         if objectivefunction(new_solution,w,s,e,capacity) > objectivefunction(solution,w,s,e,capacity) :
             solution = copy.deepcopy(new_solution)
+            no_improvement = 0 
         else : 
             Tabu.append(alist)
-        end = time.time()
-        time_needed  = time_needed + (end-start)
+            no_improvement  = no_improvement + 1
+        #end = time.time()
+        #time_needed  = time_needed + (end-start)
     return solution
