@@ -1,3 +1,62 @@
+import pandas as pd
+import numpy as np 
+import copy
+import random
+import time
+
+start = time.time()
+df = pd.read_excel("C:/Users/roxan/Documents/Thesis/Instance50.2.1.xlsx")
+
+## We assume an item goes out of the bin at the start of the end time, so item
+## 1 runs from 1 to 3, means that at the start of time 3 the item goes out the bin.
+
+# DEFINE PARAMETERS
+
+#The capacity of 55the bins 
+s=df['s'].values.tolist()
+e=df['e'].values.tolist()
+
+w=df['ci'].values.tolist()
+
+
+capacity = 100
+T_0 = 1000
+T_stop = 0.1
+iterations = 20
+alpha = 0.9
+
+
+def FF(w,c,Ts,Te) :
+    items = len(w)
+    T=list(set(Ts+Te))
+    T.sort()
+    cc = np.full((len(T),items),0)
+    cc[:,0]=c
+    p= np.zeros(items)
+    
+    n=1
+    for j in range(items):
+        for i in range(n)  :
+            p[j]=-1
+            ts = T.index(Ts[j])
+            te = T.index(Te[j])
+            a=cc[ts:te,i]
+            if all(a>w[j] for a in a)==True :
+                p[j]=i 
+                cc[ts:te,i]=cc[ts:te,i]-w[j]
+                break
+        if p[j]==-1 :
+            ts = T.index(Ts[j])
+            te = T.index(Te[j])
+            n=n+1
+            p[j]=n-1
+            cc[:,n-1]=c
+            cc[ts:te,n-1]=cc[ts:te,n-1]-w[j]
+    return p
+    # print("The number of bins used is {}".format(n))
+    # print("The assignment of the items is as follows {}".format(p))
+        
+
 def rewrite(solution):
     l=np.array(solution)
     a=max(l)
@@ -15,8 +74,18 @@ def neighbour1(FFsol,w,capacity,s,e) :
     T = list(set(s+e)) # create a list with the unique values in s+e
     T.sort()
     neighbour = copy.deepcopy(FFsol) #Copy the first fit solution 
-    randombin_index = np.random.randint(0,len(neighbour)) #Pick a random bin index
-    randombin = neighbour[randombin_index] #Identify random bin 
+    
+    bins_with_1item = []
+    for i in neighbour :
+        if len(i)==1:
+            bins_with_1item.append(i)
+    if len(bins_with_1item)!=0 :
+        randombin = random.choice(bins_with_1item) #Identify random bin 
+        randombin_index = neighbour.index(randombin) #Pick a random bin index
+    else :
+        randombin_index = np.random.randint(0,len(neighbour)) #Pick a random bin index
+        randombin = neighbour[randombin_index] #Identify random bin
+    
     randomitem_index = np.random.randint(0,len(randombin)) #Pick a random item index from the random bin
     randomitem = neighbour[randombin_index][randomitem_index] #Identify random item 
     
@@ -53,9 +122,24 @@ def neighbour2(FFsol,w,capacity,s,e):
     while True :
         T = list(set(s+e)) # create a list with the unique values in s+e
         T.sort()
+        free_space = []
+        space_matrix =[]
+        for i in range(0,len(neighbour)):
+            totalweight = np.repeat(capacity,len(T))
+            for j in range(0,len(neighbour[i])) :
+                item = neighbour[i][j] 
+                s_index = T.index(s[item-1]) #Find index for starting time of the item in array T
+                e_index = T.index(e[item-1]) #Find index for ending time of the item in array T
+                item_weight = w[neighbour[i][j]-1] #Find the weight of the item 
+                totalweight[s_index : e_index] = totalweight[s_index : e_index] - item_weight #Adapt capacity
+            space_matrix.append(totalweight.tolist())
+            free_space_i = round(sum(totalweight)/1000 , 4)
+            free_space.append(free_space_i)
+        #randombin1_index = free_space.index(max(free_space))
         randombin1_index = np.random.randint(0,len(neighbour))
         randombin1 = neighbour[randombin1_index]
     
+        #randombin2_index = free_space.index(min(free_space))
         randombin2_index = np.random.randint(0,len(neighbour))
         randombin2 = neighbour[randombin2_index]
     
@@ -109,11 +193,12 @@ def neighbour2(FFsol,w,capacity,s,e):
     return neighbour 
  
 
-def neighbour3(initial_sol, w,s,e,capacity) :
+def neighbour3(sol, w,s,e,capacity) :
     T = list(set(s+e)) # create a list with the unique values in s+e
     T.sort()
     free_space = []
     space_matrix =[]
+    initial_sol = copy.deepcopy(sol)
     for i in range(0,len(initial_sol)):
         totalweight = np.repeat(capacity,len(T))
         for j in range(0,len(initial_sol[i])) :
@@ -126,14 +211,19 @@ def neighbour3(initial_sol, w,s,e,capacity) :
         free_space_i = round(sum(totalweight)/1000 , 4)
         free_space.append(free_space_i)
     index_max_bin = free_space.index(max(free_space))
+    #index_max_bin = random.randint(0,len(initial_sol)-1)
+    global items_reallocated
     items_reallocated = []
     for i in range(0,len(initial_sol[index_max_bin])) :
         item = initial_sol[index_max_bin][i]
         items_reallocated.append(item)
+
+
+
     del free_space[index_max_bin]
     del space_matrix[index_max_bin]
     del initial_sol[index_max_bin]
-    
+        
     items_nofit = []
     for i in items_reallocated :
         s_index = T.index(s[item-1]) #Find index for starting time of the item in array T
@@ -141,7 +231,7 @@ def neighbour3(initial_sol, w,s,e,capacity) :
         item_weight = w[item-1] #Find the weight of the item 
         possible_bins = []
         sum_pb = []
-        
+            
         for j in range(0, len(initial_sol)):
             d = space_matrix[j][s_index : e_index]
             if all(d>=item_weight for d in d)==True :
@@ -154,10 +244,11 @@ def neighbour3(initial_sol, w,s,e,capacity) :
             min_bin = min(sum_pb)
             min_bin_index = sum_pb.index(min_bin)
             selected_bin = possible_bins[min_bin_index]
-            initial_solution[selected_bin].append(i)
+            initial_sol[selected_bin].append(i)
             space_matrix[selected_bin][s_index : e_index] = list(np.array(space_matrix[selected_bin][s_index : e_index]) - item_weight) 
     if len(items_nofit) != 0 :          
         initial_sol.append(items_nofit)
+
     return initial_sol
 
 def checker(solution,w,capacity,s,e):
@@ -203,7 +294,7 @@ def objectivefunction(solution,w,s,e,capacity) : #For every solution returns the
             w_i = w[item-1]
             occupation_i = (e_i-s_i)*w_i
             total_occupation = total_occupation + occupation_i
-        f=(total_occupation**2)/occupation_available
+        f=(total_occupation/occupation_available)**2
         occupation_used.append((f))
     outcome = sum(occupation_used)
     return  outcome
@@ -211,17 +302,28 @@ def objectivefunction(solution,w,s,e,capacity) : #For every solution returns the
 def SA(initial_solution, T_0, T_stop, iterations, alpha,w,capacity,s,e):
     T=T_0
     T_avg = (T_0 + T_stop)/2
-    T_avg2 = (T_avg)/2
     solution = copy.deepcopy(initial_solution)
     solutions = []
     while T > T_stop :
         for i in range(0,iterations):
+
             if T > T_avg :
-                new = neighbour3(solution,w,s,e,capacity)
-            elif T_avg2 < T < T_avg :
-                new = neighbour2(solution,w,capacity,s,e)
-            else :
-                new = neighbour1(solution,w,capacity,s,e)
+                if i%2 == 0 : 
+                    
+                    new = neighbour2(solution,w,capacity,s,e)
+
+                else : 
+                    new = neighbour3(solution,w,s,e,capacity)
+
+            else : 
+                if i%2 == 0 :
+                    new = neighbour2(solution,w,capacity,s,e)
+
+                    
+                else : 
+                    new = neighbour1(solution,w,capacity,s,e)
+
+
             delta = objectivefunction(new,w,s,e,capacity) - objectivefunction(solution,w,s,e,capacity)
             if delta > 0 :
                 solution = copy.deepcopy(new) 
@@ -231,9 +333,10 @@ def SA(initial_solution, T_0, T_stop, iterations, alpha,w,capacity,s,e):
                     solution = copy.deepcopy(new) 
             if objectivefunction(solution,w,s,e,capacity) >= objectivefunction(initial_solution,w,s,e,capacity):
                 solutions.append(solution)
-        
+        #print(objectivefunction(solution,w,s,e,capacity))
         T = alpha * T 
     obj_solutions =[]
+    solutions.append(initial_solution)
     for i in solutions :
         ob = objectivefunction(i,w,s,e,capacity)
         obj_solutions.append(ob)
